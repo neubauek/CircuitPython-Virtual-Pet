@@ -81,7 +81,7 @@ class VirtualPetGame:
     def __init__(self):
         # Main frame buffer
         self.fb = VPB.VirtualPetFramebuf(SCRWIDTH, SCRHEIGHT)
-        #self.splash()
+        self.splash()
         self.fb.clearDisplay();
 
         self.speaker_enable = digitalio.DigitalInOut(board.SPEAKER_ENABLE)
@@ -741,9 +741,12 @@ class VirtualPetGame:
 
     # Splash screen for start of game
     def splash(self):
-		self.fb.setContentsFromFile("VirtualPet/assets/splash.txt");
-		self.fb.screenPrint()
-		time.sleep(4)
+        self.fb.setContentsFromFile("VirtualPet/splash.txt", 0, 0)
+        self.fb.text("Kevin Neubauer", 0, 40, WHITE)
+        self.fb.text("@kevinneubauer", 0, 48, WHITE)
+        self.fb.text("bit.ly/2BMEg3O", 0, 56, WHITE)
+        self.fb.screenPrint()
+        time.sleep(4)
 
     def clearMenuArea(self):
         self.fb.fill_rect(0, 0, SCRWIDTH-1, 29, BLACK)
