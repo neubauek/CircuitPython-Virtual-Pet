@@ -180,8 +180,8 @@ class SH1106_I2C(_SH1106):
         # buffer is used to mask this byte from the framebuffer operations
         # (without a major memory hit as memoryview doesn't copy to a separate
         # buffer).
-        self.buffer = bytearray(((height // 8) * width) + 1)
-        self.buffer[0] = 0x40  # Set first byte of data buffer to Co=0, D/C=1
+        self.buffer = bytearray(((height // 8) * width))
+        #self.buffer[0] = 0x40  # Set first byte of data buffer to Co=0, D/C=1
         framebuffer = framebuf.FrameBuffer1(memoryview(self.buffer)[1:], width, height)
         super().__init__(framebuffer, width, height, external_vcc, reset)
 

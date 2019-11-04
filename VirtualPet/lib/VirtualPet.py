@@ -26,22 +26,22 @@ CircuitPython virtual pet class for virtual pet game
 * Author(s): Kevin Neubauer
 """
 class VirtualPet:
-    agingRate = 0.0000025
-    healthRate = 0.0005
-    poopHealthMultiplier = 0.001
+    agingRate = 0.00025
+    healthRate = 0.005
+    poopHealthMultiplier = 0.01
 
     sleepRate = {
-		'hunger': 0.0001,
-		'poop': 0.0001,
-		'happiness': 0.00002,
-		'discipline': 0.00002
+		'hunger': 0.001,
+		'poop': 0.001,
+		'happiness': 0.001,
+		'discipline': 0.001
 	}
 
     awakeRate = {
-		'hunger': 0.0005,
-		'poop': 0.0005,
-		'happiness': 0.0004,
-		'discipline': 0.0004	
+		'hunger': 0.005,
+		'poop': 0.005,
+		'happiness': 0.005,
+		'discipline': 0.005	
 	}
 
     def __init__(self):
@@ -57,33 +57,33 @@ class VirtualPet:
 
     def decrementHunger(self):
     	if (self.awake):
-    		self.hunger = self.hunger - self.awakeRate["hunger"]
+    		self.hunger -= self.awakeRate["hunger"]
     	else:
-    		self.hunger = self.hunger - self.sleepRate["hunger"]
+    		self.hunger -= self.sleepRate["hunger"]
 
     def decrementHappiness(self):
  		if (self.awake):
- 			self.happiness = self.happiness - self.awakeRate["happiness"]
+ 			self.happiness -= self.awakeRate["happiness"]
 		else:
-			self.happiness = self.happiness - self.sleepRate["happiness"]
+			self.happiness -= self.sleepRate["happiness"]
 
     def decrementDiscipline(self):
 		if (self.awake):
-			self.discipline = self.discipline - self.awakeRate["discipline"]
+			self.discipline -= self.awakeRate["discipline"]
 		else:
-			self.discipline = self.discipline - self.sleepRate["discipline"]
+			self.discipline -= self.sleepRate["discipline"]
 
     def incrementPoopLevel(self):
 		if (self.awake):
-			self.poopLevel = self.poopLevel + self.awakeRate["poop"]
+			self.poopLevel += self.awakeRate["poop"]
 		else:
-			self.poopLevel = self.poopLevel + self.sleepRate["poop"]
+			self.poopLevel += self.sleepRate["poop"]
 
     def incrementAge(self):
-		self.age = self.age + self.agingRate
+		self.age += self.agingRate
 
     def decrementHealth(self):
-		self.health = self.health - self.healthRate + self.countPoops() * self.poopHealthMultiplier
+		self.health -= (self.healthRate + (self.countPoops() * self.poopHealthMultiplier))
 
     def countPoops(self):
 		return int(self.poopLevel/10)

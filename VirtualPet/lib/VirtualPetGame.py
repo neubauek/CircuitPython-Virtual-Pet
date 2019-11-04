@@ -41,7 +41,7 @@ import neopixel
 import random
 import array
 import math
-from adafruit_debouncer import Debouncer
+import gamepad
 try:
     import audiocore
 except ImportError:
@@ -77,6 +77,16 @@ GAMEMENU[7] = ["Display Stats"]
 GAMEMENU[8] = ["Sound"]
 GAMEMENU[9] = ["Lights"]
 
+button_pins = (board.LEFT_BUTTON, board.MIDDLE_BUTTON, board.RIGHT_BUTTON)
+B_LEFT = 1 << 0;
+B_MID = 1 << 1;
+B_RIGHT = 1 << 2;
+buttons = [digitalio.DigitalInOut(pin) for pin in button_pins]
+for button in buttons:
+    button.direction = digitalio.Direction.INPUT
+    button.pull = digitalio.Pull.DOWN
+pad = gamepad.GamePad(buttons[0], buttons[1], buttons[2])
+
 class VirtualPetGame:
     def __init__(self):
         # Main frame buffer
@@ -110,6 +120,12 @@ class VirtualPetGame:
         with open ("VirtualPet/assets/petWalkRight2.txt", "r") as myfile:
             try:
                 self.animateRight2=myfile.readlines()
+            finally:
+                myfile.close()
+
+        with open ("VirtualPet/assets/sleeping.txt", "r") as myfile:
+            try:
+                self.AnimateSleeping=myfile.readlines()
             finally:
                 myfile.close()
 
@@ -176,14 +192,6 @@ class VirtualPetGame:
         self.minigame_cur_round = 1
         self.minigame_hiscore = 0
 
-        # Init 3 buttons
-        self.lButton = digitalio.DigitalInOut(board.LEFT_BUTTON)
-        self.lButton.switch_to_input(pull=digitalio.Pull.DOWN)
-        self.mButton = digitalio.DigitalInOut(board.MIDDLE_BUTTON)
-        self.mButton.switch_to_input(pull=digitalio.Pull.DOWN)
-        self.rButton = digitalio.DigitalInOut(board.RIGHT_BUTTON)
-        self.rButton.switch_to_input(pull=digitalio.Pull.DOWN)
-
         self.pet = VP.VirtualPet() # Our pet! Yay!
 
         self.mainLoop() # Go to game loop
@@ -191,6 +199,7 @@ class VirtualPetGame:
     # Main game loop
     def mainLoop(self):
         while (True):
+            buts = pad.get_pressed()
             if (self.lightsEnabled):
                 if (self.pet.happiness < HEALTHDANGER or self.pet.health < HEALTHDANGER or self.pet.hunger < HEALTHDANGER):
                     #health danger
@@ -206,9 +215,10 @@ class VirtualPetGame:
             if (self.pet.dead):
                 self.dead()
                 pixels.fill(PIX_OFF)
+                self.lightsEnabled = False
             else:
                 # Menu Action
-                if self.lButton.value:
+                if (buts & B_LEFT):
                     if (self.menuOpen == False):
                         # Main menu not already open
                         self.menuOpen = True
@@ -230,33 +240,39 @@ class VirtualPetGame:
                         self.renderMenu(self.menuSelected, 0)
 
                 # Select
-                if self.mButton.value:
-                    if (not self.menuSelected == 0):
-                        if (len(GAMEMENU[self.menuSelected]) > 1):
-                            # Menu has submenus
-                            if (self.subMenuSelected == 0):
-                                # First time visting submenu
-                                self.subMenuSelected = 1
-                                self.renderMenu(self.menuSelected, self.subMenuSelected)
+                if (buts & B_MID):
+                    if (self.menuOpen):
+                        if (not self.menuSelected == 0):
+                            if (len(GAMEMENU[self.menuSelected]) > 1):
+                                # Menu has submenus
+                                if (self.subMenuSelected == 0):
+                                    # First time visting submenu
+                                    self.subMenuSelected = 1
+                                    self.renderMenu(self.menuSelected, self.subMenuSelected)
+                                else:
+                                    # Select submenu action
+                                    self.actionSelected = GAMEMENU[self.menuSelected][self.subMenuSelected]
+                                    self.resetMenu()
+                                    self.clearMenuArea()
+                                    self.renderMainLandscape()
                             else:
-                                # Select submenu action
+                                # Select menu action
                                 self.actionSelected = GAMEMENU[self.menuSelected][self.subMenuSelected]
                                 self.resetMenu()
                                 self.clearMenuArea()
                                 self.renderMainLandscape()
-                        else:
-                            # Select menu action
-                            self.actionSelected = GAMEMENU[self.menuSelected][self.subMenuSelected]
-                            self.resetMenu()
-                            self.clearMenuArea()
-                            self.renderMainLandscape()
 
                 # Cancel / Close
-                if self.rButton.value:
+                if (buts & B_RIGHT):
                     self.resetMenu()
                     self.actionSelected = ""
                     self.clearMenuArea()
                     self.renderMainLandscape()
+
+                while buts:
+                    # Wait for all buttons to be released.
+                    buts = pad.get_pressed()
+                    time.sleep(0.1)
 
                 # If our pet is not dead
                 # Add one tick to its life
@@ -281,23 +297,24 @@ class VirtualPetGame:
                     func()
                     self.actionSelected = "" #reset after doing action
 
-                if (self.pet.awake and (not self.pet.dead)):
+                if (not self.pet.dead):
                     self.idleAnimate()
 
-                if (self.animateDirection == "Left"):
-                    self.currentAnimatePos = self.currentAnimatePos - 10
-                    self.animateStep = self.animateStep + 1
-                    if (self.currentAnimatePos < self.maxAnimateLeftPos):
-                        self.animateDirection = "Right"
-                        self.currentAnimatePos = 0
-                        self.animateStep = 1
-                else:
-                    self.currentAnimatePos = self.currentAnimatePos + 10
-                    self.animateStep = self.animateStep + 1
-                    if (self.currentAnimatePos > self.maxAnimateRightPos):
-                        self.animateDirection = "Left"
-                        self.currentAnimatePos = SCRWIDTH-27
-                        self.animateStep = 1
+                if (self.pet.awake):
+                    if (self.animateDirection == "Left"):
+                        self.currentAnimatePos = self.currentAnimatePos - 10
+                        self.animateStep = self.animateStep + 1
+                        if (self.currentAnimatePos < self.maxAnimateLeftPos):
+                            self.animateDirection = "Right"
+                            self.currentAnimatePos = 0
+                            self.animateStep = 1
+                    else:
+                        self.currentAnimatePos = self.currentAnimatePos + 10
+                        self.animateStep = self.animateStep + 1
+                        if (self.currentAnimatePos > self.maxAnimateRightPos):
+                            self.animateDirection = "Left"
+                            self.currentAnimatePos = SCRWIDTH-27
+                            self.animateStep = 1
 
     def feedSnack(self):
         if (self.pet.awake):
@@ -364,18 +381,18 @@ class VirtualPetGame:
                 self.fb.fill_rect(0, 0, 64, 64, BLACK)
                 self.pet.health += 0.5
                 self.pet.hunger += 10
-                self.pet.poopLevel += 0.025
-                self.pet.weight += 0.01
+                self.pet.poopLevel += 0.5
+                self.pet.weight += 0.25
             elif (strFoodType == "Meal"):
                 self.fb.fill_rect(0, 0, 64, 64, BLACK)
                 self.pet.health -= 1
                 self.pet.hunger += 20
-                self.pet.poopLevel += 0.05
-                self.pet.weight += 0.05
+                self.pet.poopLevel += 1
+                self.pet.weight += 0.5
             else:
                 self.fb.fill_rect(0, 0, 64, 64, BLACK)
                 self.pet.hunger += 5
-                self.pet.poopLevel += 0.01
+                self.pet.poopLevel += 0.1
 
             if (self.pet.hunger > 100):
                 self.pet.hunger = 100
@@ -461,8 +478,8 @@ class VirtualPetGame:
         self.resetMenu()
         self.fb.clearDisplay()
         self.renderMainLandscape()
-        self.pet.happiness += 15
-        if (self.pet.happiness < 100):
+        self.pet.happiness += 10
+        if (self.pet.happiness > 100):
             self.pet.happiness = 100
 
     def minigame_gen_cur_round(self):
@@ -482,6 +499,7 @@ class VirtualPetGame:
         self.fb.clearDisplay()
         self.fb.text("Hi Score: " + str(self.minigame_hiscore), 0, 0, WHITE)
         self.fb.text("Round: " + str(self.minigame_cur_round), 0, 8, WHITE)
+        self.fb.text("WAIT", 50, 20, WHITE)
         self.fb.setContentsFromList(self.buttonUp, posX[0], posY[0]+20)
         self.fb.setContentsFromList(self.buttonUp, posX[1], posY[1]+20)
         self.fb.setContentsFromList(self.buttonUp, posX[2], posY[2]+20)
@@ -500,11 +518,24 @@ class VirtualPetGame:
             self.fb.fill_rect(posX[curSeq], posY[curSeq], 26, 20, BLACK)
             self.fb.screenPrint()
 
+        #Clear "Wait" text
+        self.fb.fill_rect(50, 20, 40, 8, BLACK)
+        self.fb.screenPrint()
+
+
     def minigame_get_player_input(self):
-        # Debounced buttons work better in minigame
-        lButtonDB = Debouncer(self.lButton)
-        mButtonDB = Debouncer(self.mButton)
-        rButtonDB = Debouncer(self.rButton)
+        posX = {}
+        posY = {}
+        tone = {}
+        posX[0] = 0
+        posX[1] = 50
+        posX[2] = 100
+        posY[0] = 30
+        posY[1] = 30
+        posY[2] = 30
+        tone[0] = 350
+        tone[1] = 400
+        tone[2] = 440
 
         if (self.minigame_cur_round > 1):
             del self.minigame_player_sequence[:]
@@ -513,34 +544,37 @@ class VirtualPetGame:
         play_begin_time = time.time()
         play_end_time = time.time()
 
+        self.fb.text("GO", 50, 20, WHITE)
+        self.fb.screenPrint()
+
         #Give 3 seconds for every item in the sequence for the current round
         while ((play_end_time - play_begin_time) < self.minigame_cur_round + 3):
-            lButtonDB.update()
-            mButtonDB.update()
-            rButtonDB.update()
+            buts = pad.get_pressed()
 
-            if (lButtonDB.fell):
+            if (buts & B_LEFT):
                 self.minigame_player_sequence.append(0)
                 number_of_plays += 1
                 if (self.soundEnabled):
-                    self.play_tone(350, 0.25)
-                time.sleep(0.25)
+                    self.play_tone(tone[0], 0.25)
 
-            if (mButtonDB.fell):
+            if (buts & B_MID):
                 self.minigame_player_sequence.append(1)
                 number_of_plays += 1
                 if (self.soundEnabled):
-                    self.play_tone(400, 0.25)
-                time.sleep(0.25)
+                    self.play_tone(tone[1], 0.25)
 
-            if (rButtonDB.fell):
+            if (buts & B_RIGHT):
                 self.minigame_player_sequence.append(2)
                 number_of_plays += 1
                 if (self.soundEnabled):
-                    self.play_tone(450, 0.25)
-                time.sleep(0.25)
+                    self.play_tone(tone[2], 0.25)
 
             play_end_time = time.time()
+
+            while buts:
+                # Wait for all buttons to be released.
+                buts = pad.get_pressed()
+                time.sleep(0.1)
 
             if (number_of_plays == self.minigame_cur_round):
                 break
@@ -562,7 +596,7 @@ class VirtualPetGame:
     def toggleSleep(self):
         if (self.pet.awake):
             self.clearPetArea()
-            self.fb.setContentsFromFile("VirtualPet/assets/sleeping.txt", self.currentAnimatePos, 30)
+            self.fb.setContentsFromList(self.AnimateSleeping, self.currentAnimatePos, 30)
             self.pet.awake = False
             self.fb.screenPrint()
             self.resetMenu()
@@ -661,8 +695,13 @@ class VirtualPetGame:
             self.fb.text("%.2f Discipline" %self.pet.discipline, lAlign, 50, WHITE)
             self.fb.screenPrint()
 
-            if (self.lButton.value or self.mButton.value or self.rButton.value):
+            buts = pad.get_pressed()
+            if (buts):
                 self.pause = False
+            while buts:
+                # Wait for all buttons to be released.
+                buts = pad.get_pressed()
+                time.sleep(0.1)
 
         self.pause = True
 
@@ -675,8 +714,13 @@ class VirtualPetGame:
             self.fb.text("%.2f Age" % self.pet.age, lAlign, 38, WHITE)
             self.fb.screenPrint()
 
-            if (self.lButton.value or self.mButton.value or self.rButton.value):
+            buts = pad.get_pressed()
+            if (buts):
                 self.pause = False
+            while buts:
+                # Wait for all buttons to be released.
+                buts = pad.get_pressed()
+                time.sleep(0.1)
 
         self.fb.clearDisplay()
         self.resetMenu()
@@ -701,18 +745,21 @@ class VirtualPetGame:
 
     def idleAnimate(self):
         self.clearPetArea()
-        if (self.animateStep % 2 == 0): #Even step
+        if (not self.pet.awake): #Sleeping
+            self.fb.setContentsFromList(self.AnimateSleeping, self.currentAnimatePos, 30)
+        elif (self.animateStep % 2 == 0): #Even step
             if (self.animateDirection == "Left"):
                 self.fb.setContentsFromList(self.animateLeft2, self.currentAnimatePos, 30)
             else:
                 self.fb.setContentsFromList(self.animateRight2, self.currentAnimatePos, 30)
-            self.fb.screenPrint()
+
         else: #Odd step
             if (self.animateDirection == "Left"):
                 self.fb.setContentsFromList(self.animateLeft1, self.currentAnimatePos, 30)
             else:
                 self.fb.setContentsFromList(self.animateRight1, self.currentAnimatePos, 30)
-            self.fb.screenPrint()
+
+        self.fb.screenPrint()
 
         if (not self.menuOpen):
             poopCount = self.pet.countPoops()
